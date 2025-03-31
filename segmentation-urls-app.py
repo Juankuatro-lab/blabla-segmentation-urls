@@ -92,7 +92,8 @@ def creer_feuille_analyse_par_sous_domaine(df_segmente):
     return df_sous_domaines
 
 def creer_analyse_par_sous_repertoire(df_segmente, niveau_max=10):
-    """Crée des DataFrames pour l'analyse par sous-répertoire pour chaque sous-domaine."""
+    """Crée des DataFrames pour l'analyse par sous-répertoire pour chaque sous-domaine.
+    Format optimisé avec une structure plus claire."""
     
     # Dictionnaire pour stocker les analyses par sous-domaine
     analyses_par_sous_domaine = {}
@@ -108,34 +109,41 @@ def creer_analyse_par_sous_repertoire(df_segmente, niveau_max=10):
         # Filtrer les données pour ce sous-domaine
         df_filtre = df_segmente[df_segmente['Sous-domaine'] == sous_domaine]
         
-        # Initialiser un DataFrame pour stocker les résultats
-        df_analyse = pd.DataFrame()
+        # Créer une liste pour stocker les analyses de chaque niveau
+        analyses_niveaux = []
         
         # Pour chaque niveau de répertoire
         for niveau in range(1, niveau_max + 1):
             colonne_dossier = f'Dossier_{niveau}'
             
-            # Vérifier si ce niveau existe
+            # Vérifier si ce niveau existe dans les données
             if colonne_dossier in df_filtre.columns:
-                # Compter les occurrences de chaque valeur
+                # Compter les occurrences de chaque valeur à ce niveau
                 if not df_filtre[colonne_dossier].empty and df_filtre[colonne_dossier].notna().any():
                     counts = df_filtre[colonne_dossier].value_counts().reset_index()
-                    counts.columns = [f'Répertoire niveau {niveau}', 'Nombre de pages']
+                    counts.columns = ['Répertoire', 'Nombre de pages']
                     
-                    # Ajouter au DataFrame d'analyse
-                    if not df_analyse.empty:
-                        # Joindre les DataFrames côte à côte
-                        df_temp = pd.DataFrame()
-                        df_temp[f'Répertoire niveau {niveau}'] = counts[f'Répertoire niveau {niveau}']
-                        df_temp['Nombre de pages'] = counts['Nombre de pages']
-                        
-                        # Ajouter au DataFrame d'analyse
-                        df_analyse = pd.concat([df_analyse, df_temp], axis=1)
-                    else:
-                        df_analyse = counts
+                    # Ajouter une colonne pour le niveau
+                    counts['Niveau'] = niveau
+                    
+                    # Ajouter à la liste des analyses
+                    analyses_niveaux.append(counts)
         
-        # Stocker l'analyse dans le dictionnaire
-        analyses_par_sous_domaine[label_sous_domaine] = df_analyse
+        # Si nous avons des analyses, les combiner en un seul DataFrame
+        if analyses_niveaux:
+            df_analyse = pd.concat(analyses_niveaux, ignore_index=True)
+            
+            # Trier par niveau puis par nombre de pages décroissant
+            df_analyse = df_analyse.sort_values(['Niveau', 'Nombre de pages'], ascending=[True, False])
+            
+            # Réorganiser les colonnes pour plus de clarté
+            df_analyse = df_analyse[['Niveau', 'Répertoire', 'Nombre de pages']]
+            
+            # Stocker l'analyse dans le dictionnaire
+            analyses_par_sous_domaine[label_sous_domaine] = df_analyse
+        else:
+            # Créer un DataFrame vide si pas d'analyse
+            analyses_par_sous_domaine[label_sous_domaine] = pd.DataFrame(columns=['Niveau', 'Répertoire', 'Nombre de pages'])
     
     return analyses_par_sous_domaine
 
@@ -225,19 +233,23 @@ if uploaded_file is not None:
                 st.subheader("Analyse par sous-domaine")
                 st.dataframe(df_sous_domaines)
                 
-                # Aperçu de l'analyse par sous-répertoire pour un sous-domaine (si disponible)
+                # Onglets pour les aperçus d'analyse par sous-répertoire
                 if analyses_repertoires:
-                    st.subheader("Exemples d'analyse par sous-répertoire")
+                    st.subheader("Analyse par sous-répertoire")
                     
-                    # Sélectionner un sous-domaine pour l'aperçu
-                    sous_domaine_exemple = list(analyses_repertoires.keys())[0]
-                    df_exemple = analyses_repertoires[sous_domaine_exemple]
+                    # Créer des onglets pour chaque sous-domaine
+                    sous_domaine_tabs = st.tabs(list(analyses_repertoires.keys()))
                     
-                    st.write(f"Sous-domaine: {sous_domaine_exemple}")
-                    if not df_exemple.empty:
-                        st.dataframe(df_exemple)
-                    else:
-                        st.write("Pas de données de sous-répertoires pour ce sous-domaine.")
+                    # Afficher l'analyse dans chaque onglet
+                    for i, tab in enumerate(sous_domaine_tabs):
+                        sous_domaine = list(analyses_repertoires.keys())[i]
+                        df_analyse = analyses_repertoires[sous_domaine]
+                        
+                        with tab:
+                            if not df_analyse.empty:
+                                st.dataframe(df_analyse)
+                            else:
+                                st.write("Pas de données de sous-répertoires pour ce sous-domaine.")
                 
                 # Afficher les statistiques
                 nb_urls = len(df_resultat)
