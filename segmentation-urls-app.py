@@ -24,8 +24,16 @@ def segmenter_url(url):
         # Protocole (http, https)
         resultat['Protocole'] = parsed.scheme
         
-        # Domaine
-        resultat['Domaine'] = parsed.netloc
+        # Domaine et sous-domaine
+        domaine_complet = parsed.netloc
+        resultat['Domaine'] = domaine_complet
+        
+        # Tenter d'extraire le sous-domaine
+        parties_domaine = domaine_complet.split('.')
+        if len(parties_domaine) > 2:
+            resultat['Sous-domaine'] = '.'.join(parties_domaine[:-2])
+        else:
+            resultat['Sous-domaine'] = ''
         
         # Chemin segmenté
         chemin = parsed.path.strip('/')
@@ -60,6 +68,7 @@ def segmenter_urls_dataframe(df, colonne):
     # Ajouter les colonnes obligatoires
     df_resultat['Protocole'] = [s.get('Protocole', '') for s in segments_list]
     df_resultat['Domaine'] = [s.get('Domaine', '') for s in segments_list]
+    df_resultat['Sous-domaine'] = [s.get('Sous-domaine', '') for s in segments_list]
     
     # Ajouter les colonnes de dossiers
     for i in range(1, max_dossiers + 1):
@@ -68,11 +77,89 @@ def segmenter_urls_dataframe(df, colonne):
     
     return df_resultat
 
-def get_table_download_link(df, filename="segmentation_urls.xlsx", link_text="Télécharger le fichier Excel"):
-    """Génère un lien de téléchargement pour le DataFrame."""
+def creer_feuille_analyse_par_sous_domaine(df_segmente):
+    """Crée un DataFrame pour l'analyse par sous-domaine."""
+    
+    # Grouper par sous-domaine et domaine, et compter le nombre de pages
+    df_sous_domaines = df_segmente.groupby(['Sous-domaine', 'Domaine']).size().reset_index(name='Nombre de pages')
+    
+    # Si le sous-domaine est vide, le remplacer par "(domaine principal)"
+    df_sous_domaines['Sous-domaine'] = df_sous_domaines['Sous-domaine'].replace('', '(domaine principal)')
+    
+    # Trier par nombre de pages décroissant
+    df_sous_domaines = df_sous_domaines.sort_values('Nombre de pages', ascending=False)
+    
+    return df_sous_domaines
+
+def creer_analyse_par_sous_repertoire(df_segmente, niveau_max=10):
+    """Crée des DataFrames pour l'analyse par sous-répertoire pour chaque sous-domaine."""
+    
+    # Dictionnaire pour stocker les analyses par sous-domaine
+    analyses_par_sous_domaine = {}
+    
+    # Obtenir la liste des sous-domaines (y compris le domaine principal)
+    sous_domaines = df_segmente['Sous-domaine'].unique()
+    
+    # Pour chaque sous-domaine
+    for sous_domaine in sous_domaines:
+        # Créer une étiquette pour le sous-domaine (s'il est vide, utiliser "domaine principal")
+        label_sous_domaine = sous_domaine if sous_domaine else '(domaine principal)'
+        
+        # Filtrer les données pour ce sous-domaine
+        df_filtre = df_segmente[df_segmente['Sous-domaine'] == sous_domaine]
+        
+        # Initialiser un DataFrame pour stocker les résultats
+        df_analyse = pd.DataFrame()
+        
+        # Pour chaque niveau de répertoire
+        for niveau in range(1, niveau_max + 1):
+            colonne_dossier = f'Dossier_{niveau}'
+            
+            # Vérifier si ce niveau existe
+            if colonne_dossier in df_filtre.columns:
+                # Compter les occurrences de chaque valeur
+                if not df_filtre[colonne_dossier].empty and df_filtre[colonne_dossier].notna().any():
+                    counts = df_filtre[colonne_dossier].value_counts().reset_index()
+                    counts.columns = [f'Répertoire niveau {niveau}', 'Nombre de pages']
+                    
+                    # Ajouter au DataFrame d'analyse
+                    if not df_analyse.empty:
+                        # Joindre les DataFrames côte à côte
+                        df_temp = pd.DataFrame()
+                        df_temp[f'Répertoire niveau {niveau}'] = counts[f'Répertoire niveau {niveau}']
+                        df_temp['Nombre de pages'] = counts['Nombre de pages']
+                        
+                        # Ajouter au DataFrame d'analyse
+                        df_analyse = pd.concat([df_analyse, df_temp], axis=1)
+                    else:
+                        df_analyse = counts
+        
+        # Stocker l'analyse dans le dictionnaire
+        analyses_par_sous_domaine[label_sous_domaine] = df_analyse
+    
+    return analyses_par_sous_domaine
+
+def get_table_download_link_with_sheets(df_principal, df_sous_domaines, analyses_repertoires, filename="segmentation_urls.xlsx", link_text="Télécharger le fichier Excel"):
+    """Génère un lien de téléchargement pour le fichier Excel avec plusieurs feuilles."""
     output = io.BytesIO()
+    
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False)
+        # Feuille principale avec les URLs segmentées
+        df_principal.to_excel(writer, sheet_name='URLs segmentées', index=False)
+        
+        # Feuille d'analyse par sous-domaine
+        df_sous_domaines.to_excel(writer, sheet_name='URLs par sous-domaine', index=False)
+        
+        # Feuilles d'analyse par sous-répertoire pour chaque sous-domaine
+        for sous_domaine, df_analyse in analyses_repertoires.items():
+            # Limiter la longueur du nom de la feuille à 31 caractères (limite Excel)
+            sheet_name = f"Rép. {sous_domaine}"
+            if len(sheet_name) > 31:
+                sheet_name = sheet_name[:28] + "..."
+            
+            # Vérifier si le DataFrame n'est pas vide
+            if not df_analyse.empty:
+                df_analyse.to_excel(writer, sheet_name=sheet_name, index=False)
     
     b64 = base64.b64encode(output.getvalue()).decode()
     href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}">{link_text}</a>'
@@ -126,26 +213,60 @@ if uploaded_file is not None:
                 # Segmenter les URLs
                 df_resultat = segmenter_urls_dataframe(df, colonne_selectionnee)
                 
-                # Afficher un aperçu du résultat
+                # Créer les analyses supplémentaires
+                df_sous_domaines = creer_feuille_analyse_par_sous_domaine(df_resultat)
+                analyses_repertoires = creer_analyse_par_sous_repertoire(df_resultat)
+                
+                # Afficher un aperçu du résultat principal
                 st.subheader("Aperçu des URLs segmentées")
                 st.dataframe(df_resultat.head(10))
+                
+                # Afficher un aperçu de l'analyse par sous-domaine
+                st.subheader("Analyse par sous-domaine")
+                st.dataframe(df_sous_domaines)
+                
+                # Aperçu de l'analyse par sous-répertoire pour un sous-domaine (si disponible)
+                if analyses_repertoires:
+                    st.subheader("Exemples d'analyse par sous-répertoire")
+                    
+                    # Sélectionner un sous-domaine pour l'aperçu
+                    sous_domaine_exemple = list(analyses_repertoires.keys())[0]
+                    df_exemple = analyses_repertoires[sous_domaine_exemple]
+                    
+                    st.write(f"Sous-domaine: {sous_domaine_exemple}")
+                    if not df_exemple.empty:
+                        st.dataframe(df_exemple)
+                    else:
+                        st.write("Pas de données de sous-répertoires pour ce sous-domaine.")
                 
                 # Afficher les statistiques
                 nb_urls = len(df_resultat)
                 nb_protocoles = df_resultat['Protocole'].nunique()
                 nb_domaines = df_resultat['Domaine'].nunique()
+                nb_sous_domaines = len([sd for sd in df_resultat['Sous-domaine'].unique() if sd])
                 
-                col1, col2, col3 = st.columns(3)
+                st.subheader("Statistiques")
+                col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Nombre d'URLs", nb_urls)
                 col2.metric("Protocoles uniques", nb_protocoles)
                 col3.metric("Domaines uniques", nb_domaines)
+                col4.metric("Sous-domaines uniques", nb_sous_domaines)
                 
                 # Proposer le téléchargement
                 st.subheader("Télécharger le résultat")
-                st.markdown(get_table_download_link(df_resultat), unsafe_allow_html=True)
+                st.markdown(
+                    get_table_download_link_with_sheets(
+                        df_resultat, 
+                        df_sous_domaines, 
+                        analyses_repertoires
+                    ), 
+                    unsafe_allow_html=True
+                )
                 
                 # Sauvegarder dans la session
                 st.session_state.df_resultat = df_resultat
+                st.session_state.df_sous_domaines = df_sous_domaines
+                st.session_state.analyses_repertoires = analyses_repertoires
     
     except Exception as e:
         st.error(f"Erreur lors de l'importation ou du traitement du fichier: {str(e)}")
