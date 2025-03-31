@@ -1,110 +1,93 @@
-# Guide d'installation et d'utilisation de l'outil de segmentation d'URLs
+# Outil de Segmentation d'URLs
 
-## À propos de l'outil
+Ce projet propose un outil pour segmenter les URLs en fonction des dossiers présents dans le chemin. Il transforme un fichier contenant des URLs en un tableau structuré avec les différentes parties de chaque URL (protocole, domaine, dossiers).
 
-Cet outil permet de segmenter les URLs en fonction des dossiers présents dans l'URL. Il prend en entrée un fichier Excel ou CSV contenant une colonne d'URLs, et génère un nouveau fichier avec les URLs segmentées (protocole, domaine, dossiers).
+## Fonctionnalités
+
+- Import de fichiers Excel (.xlsx, .xls) et CSV
+- Sélection de la colonne contenant les URLs
+- Segmentation automatique des URLs en :
+  - Protocole (http, https)
+  - Domaine
+  - Dossiers (niveau 1, 2, 3, etc.)
+- Prévisualisation des résultats
+- Téléchargement des résultats au format Excel ou CSV
+- Statistiques sur les URLs traitées
 
 ## Prérequis
 
-Pour utiliser cet outil, vous aurez besoin d'installer :
-
-1. **Python 3.7 ou plus récent**
-   - Téléchargez Python depuis [python.org](https://www.python.org/downloads/)
-   - Assurez-vous de cocher l'option "Add Python to PATH" lors de l'installation
-
-2. **Les bibliothèques nécessaires**
-   - Pandas : pour la manipulation de données tabulaires
-   - Openpyxl : pour la gestion des fichiers Excel
+- Python 3.7 ou supérieur
+- Les bibliothèques listées dans `requirements.txt`
 
 ## Installation
 
-1. **Téléchargez les fichiers sources**
-
-2. **Installez les dépendances**
-   
-   Ouvrez un terminal (Invite de commandes sur Windows) et exécutez :
-   ```
-   pip install pandas openpyxl
+1. Clonez ce dépôt ou téléchargez les fichiers source
+2. Installez les dépendances :
+   ```bash
+   pip install -r requirements.txt
    ```
 
 ## Utilisation
 
-### Version avec interface graphique (GUI)
+### Version Streamlit (recommandée)
 
-1. **Lancez l'application**
-   
-   Double-cliquez sur le fichier `segmentation_url_gui.py` ou exécutez-le depuis un terminal :
-   ```
-   python segmentation_url_gui.py
+1. Lancez l'application :
+   ```bash
+   streamlit run segmentation_urls_app.py
    ```
 
-2. **Importez votre fichier**
-   
-   - Cliquez sur "Parcourir les fichiers" et sélectionnez votre fichier Excel ou CSV contenant les URLs à segmenter
-   - Le fichier doit contenir une colonne avec les URLs (comme "Adresse" ou "URL")
+2. Ouvrez votre navigateur à l'adresse indiquée (généralement http://localhost:8501)
 
-3. **Sélectionnez la colonne contenant les URLs**
-   
-   - Dans la liste déroulante, choisissez la colonne qui contient vos URLs
-   - Cliquez sur "Valider"
-
-4. **Lancez la segmentation**
-   
+3. Suivez les instructions à l'écran :
+   - Importez votre fichier Excel ou CSV
+   - Sélectionnez la colonne contenant les URLs
    - Cliquez sur "Segmenter les URLs"
-   - Attendez que le traitement soit terminé
+   - Visualisez les résultats et téléchargez le fichier
 
-5. **Prévisualisez les résultats**
-   
-   - L'onglet "Prévisualisation" s'affiche automatiquement pour montrer un aperçu des résultats
-   - Vous pouvez consulter les premières lignes du fichier segmenté
+### Version en ligne de commande (alternative)
 
-6. **Téléchargez le résultat**
-   
-   - Cliquez sur "Télécharger le fichier"
-   - Choisissez l'emplacement et le format (Excel ou CSV) où enregistrer le fichier
-   - Cliquez sur "Enregistrer"
+Pour une utilisation rapide ou automatisée :
 
-### Version en ligne de commande
-
-Pour une utilisation rapide ou dans des scripts automatisés, vous pouvez utiliser la version en ligne de commande :
-
-```
+```bash
 python segmentation_url_cli.py chemin/vers/fichier.xlsx nom_colonne -o chemin/vers/sortie.xlsx
 ```
 
-Options :
-- `chemin/vers/fichier.xlsx` : le chemin vers votre fichier d'entrée (Excel ou CSV)
-- `nom_colonne` : le nom de la colonne contenant les URLs
-- `-o chemin/vers/sortie.xlsx` : (optionnel) le chemin du fichier de sortie. Si non spécifié, un nom par défaut sera généré.
+## Déploiement
 
-## Format de sortie
+Pour rendre l'application accessible à d'autres utilisateurs, vous pouvez la déployer sur Streamlit Cloud :
 
-Le fichier de sortie contiendra :
-- Une colonne "URL" contenant les URLs d'origine
-- Une colonne "Protocole" avec le protocole (http, https)
-- Une colonne "Domaine" avec le nom de domaine
-- Une série de colonnes "Dossier_1", "Dossier_2", etc. contenant les différents segments du chemin
+1. Créez un compte sur [streamlit.io](https://streamlit.io/)
+2. Connectez votre repository GitHub à Streamlit Cloud
+3. Configurez le déploiement et partagez l'URL avec vos utilisateurs
 
-## Résolution des problèmes courants
+## Structure des fichiers
+
+- `segmentation_urls_app.py` : Application principale (Streamlit)
+- `segmentation_url_cli.py` : Version en ligne de commande
+- `requirements.txt` : Liste des dépendances
+- `README.md` : Documentation
+
+## Notes techniques
+
+L'outil utilise la bibliothèque `urlparse` de Python pour décomposer les URLs de manière fiable. Il peut gérer différents formats d'URL, y compris ceux contenant des caractères spéciaux ou des paramètres de requête.
+
+## Résolution des problèmes
 
 ### "Module not found"
-Si vous obtenez une erreur "No module named...", assurez-vous d'avoir bien installé les dépendances :
+
+Si vous rencontrez une erreur de module manquant :
 ```
-pip install pandas openpyxl
+pip install -r requirements.txt
 ```
 
-### Problèmes de lecture de fichier
-- Vérifiez que votre fichier n'est pas ouvert dans Excel ou un autre programme
-- Assurez-vous que le fichier est bien au format Excel (.xlsx, .xls) ou CSV (.csv)
-- Pour les fichiers CSV, vérifiez l'encodage (UTF-8 recommandé)
+### "Could not find a version that satisfies the requirement"
 
-### URLs mal segmentées
-- Les URLs doivent être complètes et commencer par http:// ou https://
-- L'outil gère automatiquement les caractères spéciaux et les espaces dans les URLs
+Si vous avez des problèmes avec les versions des packages :
+```
+pip install --upgrade pip
+pip install -r requirements.txt
+```
 
-## Personnalisation
+## Contribution
 
-Vous pouvez modifier le code source pour adapter l'outil à vos besoins spécifiques :
-- Ajouter des colonnes supplémentaires (paramètres d'URL, fragment, etc.)
-- Modifier le format de sortie
-- Ajouter des fonctionnalités comme l'extraction de statistiques sur les URLs
+Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou à proposer une pull request pour améliorer cet outil.
