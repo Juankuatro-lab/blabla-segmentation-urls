@@ -108,7 +108,3 @@ Vous pouvez modifier le code source pour adapter l'outil à vos besoins spécifi
 - Ajouter des colonnes supplémentaires (paramètres d'URL, fragment, etc.)
 - Modifier le format de sortie
 - Ajouter des fonctionnalités comme l'extraction de statistiques sur les URLs
-
----
-
-En cas de problème ou pour toute question, n'hésitez pas à contacter le développeur.
